@@ -58,3 +58,6 @@ curl -X POST https://currency-converter.vercel.app/convert \
 ## Monetization
 
 List on RapidAPI at $19/month for teams. Target pricing includes 1000 requests/day.
+
+## Postman
+[![Run in Postman](https://run.pstmn.io/button.svg)](https://raw.githubusercontent.com/BT-Builds/currency-converter/main/postman_collection.json)
