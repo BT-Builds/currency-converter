@@ -70,27 +70,54 @@ def get_exchange_rate(from_curr: str, to_curr: str) -> float:
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Exchange rate service unavailable: {str(e)}")
 
+def _convert_item(from_currency: str, to_currency: str, amount: float, fee_type: str) -> dict:
+    """Helper function to convert a single currency item."""
+    rate = get_exchange_rate(from_currency, to_currency)
+    markup = FEE_MARKS.get(fee_type, 0.0)
+    adjusted_rate = rate * (1 - markup / 100)
+    converted = amount * adjusted_rate
+    return {
+        "from_currency": from_currency.upper(),
+        "to_currency": to_currency.upper(),
+        "amount": amount,
+        "converted_amount": round(converted, 4),
+        "fee_type": fee_type,
+        "exchange_rate": rate,
+        "markup_percent": markup,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "currency-converter"}
 
 @app.post("/convert")
 async def convert_currency(req: ConvertRequest, _: str = Depends(verify_api_key)):
-    rate = get_exchange_rate(req.from_currency, req.to_currency)
-    markup = FEE_MARKS.get(req.fee_type, 0.0)
-    adjusted_rate = rate * (1 - markup / 100)
-    converted = req.amount * adjusted_rate
+    result = _convert_item(req.from_currency, req.to_currency, req.amount, req.fee_type)
+    return ConvertResponse(**result)
+
+class BulkConvertRequest(BaseModel):
+    items: list[ConvertRequest] = Field(..., max_items=1000, description="Up to 1000 currency conversion requests")
+
+class BulkResult(BaseModel):
+    input: dict
+    output: Optional[dict] = None
+    error: Optional[str] = None
+
+@app.post("/bulk/convert")
+async def bulk_convert(req: BulkConvertRequest, _: str = Depends(verify_api_key)):
+    results = []
+    for item in req.items:
+        try:
+            output = _convert_item(item.from_currency, item.to_currency, item.amount, item.fee_type)
+            results.append(BulkResult(input={"from_currency": item.from_currency, "to_currency": item.to_currency, "amount": item.amount, "fee_type": item.fee_type}, output=output))
+        except HTTPException as e:
+            results.append(BulkResult(input={"from_currency": item.from_currency, "to_currency": item.to_currency, "amount": item.amount, "fee_type": item.fee_type}, error=e.detail))
+        except Exception as e:
+            results.append(BulkResult(input={"from_currency": item.from_currency, "to_currency": item.to_currency, "amount": item.amount, "fee_type": item.fee_type}, error=str(e)))
     
-    return ConvertResponse(
-        from_currency=req.from_currency.upper(),
-        to_currency=req.to_currency.upper(),
-        amount=req.amount,
-        converted_amount=round(converted, 4),
-        fee_type=req.fee_type,
-        exchange_rate=rate,
-        markup_percent=markup,
-        timestamp=datetime.utcnow().isoformat()
-    )
+    successful = sum(1 for r in results if r.output is not None)
+    return {"results": [r.model_dump() for r in results], "total": len(results), "successful": successful}
 
 @app.get("/currencies")
 async def list_currencies(_: str = Depends(verify_api_key)):
