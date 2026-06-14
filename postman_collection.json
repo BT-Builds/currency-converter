@@ -81,6 +81,43 @@
       }
     },
     {
+      "name": "Bulk Convert",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bulk/convert",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bulk",
+            "convert"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "List Currencies",
       "request": {
         "method": "GET",
